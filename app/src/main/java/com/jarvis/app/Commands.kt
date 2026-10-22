@@ -19,13 +19,15 @@ class Commands(private val ctx: Context) {
 
     private enum class St {
         IDLE, CALL_NAME, CALL_PICK, CALL_CONFIRM,
-        SMS_NAME, SMS_PICK, SMS_BODY, SMS_CONFIRM
+        SMS_NAME, SMS_PICK, SMS_BODY, SMS_CONFIRM,
+        REPLY_BODY, REPLY_CONFIRM
     }
 
     private var st = St.IDLE
     private var options: List<CallHelper.Contact> = emptyList()
     private var target: CallHelper.Contact? = null
     private var body = ""
+    private var replyTo = ""
     private var tries = 0
 
     // Service isse jaanegi ki Jarvis ko dobara sunna hai ya nahi
@@ -36,6 +38,7 @@ class Commands(private val ctx: Context) {
         options = emptyList()
         target = null
         body = ""
+        replyTo = ""
         tries = 0
     }
 
@@ -48,7 +51,7 @@ class Commands(private val ctx: Context) {
         "sms", "message", "msg", "मैसेज", "मेसेज", "एसएमएस", "संदेश", "text", "टेक्स्ट",
         "भेजो", "भेज", "bhejo", "bhej", "दो", "do", "को", "ko", "send", "सेंड",
         "लिखो", "likho", "जार्विस", "jarvis", "करो", "kar", "कर", "एक", "ek",
-        "पर", "par", "से", "please", "plz", "एक"
+        "पर", "par", "से", "please", "plz"
     )
 
     private fun setTorch(on: Boolean): Boolean {
@@ -93,11 +96,30 @@ class Commands(private val ctx: Context) {
 
         if (has(t, "timer", "टाइमर")) return doTimer(t)
 
-        if (has(t, "alarm", "अलार्म", "अलार्म")) return doAlarm(t)
+        if (has(t, "alarm", "अलार्म")) return doAlarm(t)
+
+        // ---- नोटिफिकेशन पढ़ना / साफ़ करना ----
+        if (has(t, "notification", "नोटिफिकेशन", "नोटिफ़िकेशन") ||
+            (has(t, "मैसेज", "मेसेज", "संदेश", "message") &&
+                has(t, "आया", "आए", "आई", "aaya", "पढ़", "पढ", "padh", "सुना", "बता") &&
+                !has(t, "भेज", "bhej", "send", "सेंड"))
+        ) {
+            if (has(t, "साफ", "clear", "हटा", "मिटा")) {
+                NotifListener.clearAll()
+                return "सारे नोटिफिकेशन साफ़ कर दिए"
+            }
+            if (!NotifListener.isConnected()) {
+                return "नोटिफिकेशन की अनुमति नहीं है सर। जार्विस ऐप में Notification access चालू कीजिए"
+            }
+            return NotifListener.summary()
+        }
+
+        // ---- जवाब देना ----
+        if (has(t, "reply", "रिप्लाई", "जवाब", "jawab")) return startReply()
 
         if (has(t, "sms", "एसएमएस", "message", "मैसेज", "मेसेज", "संदेश", "msg")) {
             if (has(t, "whatsapp", "व्हाट्सएप", "व्हाट्सऐप", "वॉट्सऐप")) {
-                return "व्हाट्सएप वाला काम अभी जुड़ना बाकी है सर"
+                return "व्हाट्सएप पर नया मैसेज भेजना अभी नहीं आता सर, आए हुए मैसेज का जवाब देना आता है"
             }
             return startSms(t, raw)
         }
@@ -181,11 +203,42 @@ class Commands(private val ctx: Context) {
                 if (caller.isNo(t)) return cancel()
                 return retry("मैसेज भेज दूँ? हाँ या नहीं बोलिए")
             }
+            St.REPLY_BODY -> {
+                if (has(t, "cancel", "कैंसल", "रहने दो", "rehne do", "रद्द")) return cancel()
+                body = raw
+                st = St.REPLY_CONFIRM
+                tries = 0
+                return "$replyTo को जवाब: $body। भेज दूँ?"
+            }
+            St.REPLY_CONFIRM -> {
+                if (caller.isYes(t)) {
+                    val who = replyTo
+                    val b = body
+                    reset()
+                    return if (NotifListener.reply(who, b)) "जवाब भेज दिया सर"
+                    else "जवाब नहीं भेज पाया सर"
+                }
+                if (caller.isNo(t)) return cancel()
+                return retry("जवाब भेज दूँ? हाँ या नहीं बोलिए")
+            }
             else -> {
                 reset()
                 return handleNew(t, raw)
             }
         }
+    }
+
+    // ---------------- जवाब ----------------
+
+    private fun startReply(): String {
+        if (!NotifListener.isConnected()) {
+            return "नोटिफिकेशन की अनुमति नहीं है सर। जार्विस ऐप में Notification access चालू कीजिए"
+        }
+        val s = NotifListener.lastSender() ?: return "कोई संदेश नहीं है जिसका जवाब दूँ सर"
+        replyTo = s
+        st = St.REPLY_BODY
+        tries = 0
+        return "$s को क्या जवाब दूँ?"
     }
 
     // ---------------- कॉल ----------------
