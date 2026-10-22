@@ -20,7 +20,7 @@ class Commands(private val ctx: Context) {
     private enum class St {
         IDLE, CALL_NAME, CALL_PICK, CALL_CONFIRM,
         SMS_NAME, SMS_PICK, SMS_BODY, SMS_CONFIRM,
-        REPLY_BODY, REPLY_CONFIRM
+        REPLY_BODY, REPLY_CONFIRM, PLAY_STORE_CONFIRM
     }
 
     private var st = St.IDLE
@@ -28,9 +28,9 @@ class Commands(private val ctx: Context) {
     private var target: CallHelper.Contact? = null
     private var body = ""
     private var replyTo = ""
+    private var pendingAppName = ""
     private var tries = 0
 
-    // Service isse jaanegi ki Jarvis ko dobara sunna hai ya nahi
     val isWaiting: Boolean get() = st != St.IDLE
 
     fun reset() {
@@ -39,6 +39,7 @@ class Commands(private val ctx: Context) {
         target = null
         body = ""
         replyTo = ""
+        pendingAppName = ""
         tries = 0
     }
 
@@ -95,7 +96,6 @@ class Commands(private val ctx: Context) {
         }
 
         if (has(t, "timer", "टाइमर")) return doTimer(t)
-
         if (has(t, "alarm", "अलार्म")) return doAlarm(t)
 
         // ---- नोटिफिकेशन पढ़ना / साफ़ करना ----
@@ -132,8 +132,28 @@ class Commands(private val ctx: Context) {
             return "सर, अभी $now हुए हैं"
         }
 
-        val opened = launcher.open(t)
-        if (opened != null) return "$opened खोल रहा हूँ"
+        // ---- ऐप खोलना (App Opening & Play Store Check) ----
+        if (has(t, "open", "kholo", "chalao", "खोलो", "चलाओ", "खोल")) {
+            val appName = t
+                .replace("open", "")
+                .replace("kholo", "")
+                .replace("chalao", "")
+                .replace("खोलो", "")
+                .replace("चलाओ", "")
+                .replace("खोल", "")
+                .trim()
+
+            if (appName.isNotEmpty()) {
+                val success = launcher.openApp(appName)
+                if (success) {
+                    return "$appName खोल रहा हूँ"
+                } else {
+                    st = St.PLAY_STORE_CONFIRM
+                    pendingAppName = appName
+                    return "$appName आपके फोन में नहीं है सर। क्या इसे Play Store से ढूँढूँ?"
+                }
+            }
+        }
 
         if (has(t, "hello", "नमस्ते", "हेलो", "jarvis", "जार्विस")) {
             return "नमस्ते सर, मैं जार्विस हूँ। बताइए क्या करना है?"
@@ -142,10 +162,21 @@ class Commands(private val ctx: Context) {
         return "माफ़ कीजिए सर, मुझे यह काम अभी नहीं आता"
     }
 
-    // ---------------- बातचीत की अगली कड़ियाँ ----------------
-
     private fun handleState(t: String, raw: String): String {
         when (st) {
+            St.PLAY_STORE_CONFIRM -> {
+                if (caller.isYes(t)) {
+                    val app = pendingAppName
+                    launcher.openPlayStore(app)
+                    reset()
+                    return "$app Play Store पर खोजा जा रहा है"
+                }
+                if (caller.isNo(t)) {
+                    reset()
+                    return "ठीक है सर, रद्द कर दिया"
+                }
+                return retry("क्या Play Store से ढूँढूँ? हाँ या नहीं बोलिए")
+            }
             St.CALL_NAME -> {
                 if (caller.isNo(t)) return cancel()
                 return startCall(t)
@@ -228,8 +259,6 @@ class Commands(private val ctx: Context) {
         }
     }
 
-    // ---------------- जवाब ----------------
-
     private fun startReply(): String {
         if (!NotifListener.isConnected()) {
             return "नोटिफिकेशन की अनुमति नहीं है सर। जार्विस ऐप में Notification access चालू कीजिए"
@@ -240,8 +269,6 @@ class Commands(private val ctx: Context) {
         tries = 0
         return "$s को क्या जवाब दूँ?"
     }
-
-    // ---------------- कॉल ----------------
 
     private fun startCall(t: String): String {
         val num = caller.extractNumber(t)
@@ -276,8 +303,6 @@ class Commands(private val ctx: Context) {
         st = St.CALL_PICK
         return "कई संपर्क मिले। " + caller.optionsText(list) + "किसे लगाऊँ?"
     }
-
-    // ---------------- SMS ----------------
 
     private fun startSms(t: String, raw: String): String {
         var namePart = t
