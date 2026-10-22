@@ -2,98 +2,53 @@ package com.jarvis.app
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 
-class AppLauncher(private val ctx: Context) {
+class AppLauncher(private val context: Context) {
 
-    data class AppInfo(val label: String, val pkg: String)
-
-    fun installedApps(): List<AppInfo> {
-        val pm = ctx.packageManager
-        val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        return pm.queryIntentActivities(i, 0)
-            .map { AppInfo(it.loadLabel(pm).toString(), it.activityInfo.packageName) }
-            .filter { it.pkg != ctx.packageName }
-            .distinctBy { it.pkg }
-    }
-
-    private fun roman(s: String): String {
-        val sb = StringBuilder()
-        for (ch in s.lowercase()) {
-            val r = when (ch) {
-                'अ', 'आ', 'ा' -> "a"
-                'इ', 'ई', 'ि', 'ी' -> "i"
-                'उ', 'ऊ', 'ु', 'ू' -> "u"
-                'ए', 'ऐ', 'े', 'ै' -> "e"
-                'ओ', 'औ', 'ऑ', 'ो', 'ौ', 'ॉ' -> "o"
-                'ऋ', 'ृ' -> "ri"
-                'ं', 'ँ' -> "n"
-                'ः' -> "h"
-                '्', '़' -> ""
-                'क', 'ख' -> "k"
-                'ग', 'घ' -> "g"
-                'ङ', 'ञ', 'ण', 'न' -> "n"
-                'च', 'छ' -> "c"
-                'ज', 'झ' -> "j"
-                'ट', 'ठ', 'त', 'थ' -> "t"
-                'ड', 'ढ', 'द', 'ध' -> "d"
-                'प' -> "p"
-                'फ' -> "f"
-                'ब', 'भ' -> "b"
-                'म' -> "m"
-                'य' -> "y"
-                'र' -> "r"
-                'ल' -> "l"
-                'व' -> "v"
-                'श', 'ष', 'स' -> "s"
-                'ह' -> "h"
-                else -> ch.toString()
-            }
-            sb.append(r)
+    // App kholne ka main function
+    fun openApp(appName: String): Boolean {
+        val pm = context.packageManager
+        val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        
+        val query = appName.lowercase().trim()
+        
+        val resolvedQuery = when {
+            query.contains("free fire") || query.contains("freefire") -> "free fire"
+            query.contains("youtube") -> "youtube"
+            query.contains("canva") -> "canva"
+            else -> query
         }
-        return sb.toString()
-    }
 
-    private fun skeleton(s: String): String {
-        var t = roman(s).filter { it in 'a'..'z' }
-        t = t.replace("ph", "f").replace("x", "ks")
-            .replace('c', 'k').replace('q', 'k').replace('z', 'j')
-        val sb = StringBuilder()
-        for (ch in t) {
-            if (ch in "aeiouyhwv") continue
-            if (sb.isNotEmpty() && sb.last() == ch) continue
-            sb.append(ch)
-        }
-        return sb.toString()
-    }
+        for (packageInfo in packages) {
+            val appLabel = pm.getApplicationLabel(packageInfo).toString().lowercase()
+            val packageName = packageInfo.packageName.lowercase()
 
-    fun find(spoken: String): AppInfo? {
-        val sp = skeleton(spoken)
-        val tokens = spoken.lowercase().split(" ", "\n")
-            .filter { it.isNotBlank() }
-            .map { skeleton(it) }
-        var best: AppInfo? = null
-        var bestScore = 0
-        for (a in installedApps()) {
-            val ls = skeleton(a.label)
-            val ok = if (ls.length >= 3) sp.contains(ls)
-            else ls.length == 2 && tokens.contains(ls)
-            if (ok && ls.length > bestScore) {
-                best = a
-                bestScore = ls.length
+            if (appLabel.contains(resolvedQuery) || packageName.contains(resolvedQuery)) {
+                val launchIntent = pm.getLaunchIntentForPackage(packageInfo.packageName)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(launchIntent)
+                    return true
+                }
             }
         }
-        return best
+        return false // Agar app nahi mila
     }
 
-    fun open(spoken: String): String? {
-        val app = find(spoken) ?: return null
-        return try {
-            val i = ctx.packageManager.getLaunchIntentForPackage(app.pkg) ?: return null
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            ctx.startActivity(i)
-            app.label
+    // Play Store kholne ke liye function
+    fun openPlayStore(appName: String) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=$appName")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
         } catch (e: Exception) {
-            null
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/search?q=$appName")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
         }
     }
 }
