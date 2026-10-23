@@ -102,7 +102,6 @@ class Commands(private val ctx: Context) {
         if (has(t, "timer", "टाइमर")) return doTimer(t)
         if (has(t, "alarm", "अलार्म")) return doAlarm(t)
 
-        // ---- नोटिफिकेशन पढ़ना / साफ़ करना ----
         if (has(t, "notification", "नोटिफिकेशन", "नोटिफ़िकेशन") ||
             (has(t, "मैसेज", "मेसेज", "संदेश", "message") &&
                 has(t, "आया", "आए", "आई", "aaya", "पढ़", "पढ", "padh", "सुना", "बता") &&
@@ -118,7 +117,6 @@ class Commands(private val ctx: Context) {
             return NotifListener.summary()
         }
 
-        // ---- जवाब देना ----
         if (has(t, "reply", "रिप्लाई", "जवाब", "jawab")) return startReply()
 
         if (has(t, "sms", "एसएमएस", "message", "मैसेज", "मेसेज", "संदेश", "msg")) {
@@ -136,7 +134,6 @@ class Commands(private val ctx: Context) {
             return "सर, अभी $now हुए हैं"
         }
 
-        // ---- ऐप खोलना ----
         if (has(t, "open", "kholo", "chalao", "खोलो", "चलाओ", "खोल")) {
             val appName = t
                 .replace("open", "")
@@ -274,7 +271,6 @@ class Commands(private val ctx: Context) {
         return "$s को क्या जवाब दूँ?"
     }
 
-    // ---- AI Powered CALL Handler ----
     private fun startCall(rawInput: String): String {
         val contactsList = caller.findContacts("").joinToString(", ") { "${it.name}:${it.number}" }
 
@@ -395,8 +391,6 @@ class Commands(private val ctx: Context) {
             false
         }
     }
-
-    // ---------------- अलार्म और टाइमर ----------------
 
     private val wordNums = mapOf(
         "एक" to 1, "ek" to 1, "दो" to 2, "do" to 2, "तीन" to 3, "teen" to 3,
