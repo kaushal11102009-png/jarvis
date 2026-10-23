@@ -525,4 +525,8 @@ class Commands(private val ctx: Context) {
         if (!ok) return "टाइमर नहीं लग पाया सर"
         val parts = ArrayList<String>()
         if (sec / 3600 > 0) parts.add("${sec / 3600} घंटे")
-        if ((sec % 3600) / 60 > 0) parts.add("${
+        if ((sec % 3600) / 60 > 0) parts.add("${(sec % 3600) / 60} मिनट")
+        if (sec % 60 > 0) parts.add("${sec % 60} सेकंड")
+        return "${parts.joinToString(" ")} का टाइमर चालू कर दिया"
+    }
+}
