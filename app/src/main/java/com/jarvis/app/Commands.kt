@@ -8,6 +8,8 @@ import android.hardware.camera2.CameraManager
 import android.os.Build
 import android.provider.AlarmClock
 import android.telephony.SmsManager
+import kotlinx.coroutines.runBlocking
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -16,6 +18,7 @@ class Commands(private val ctx: Context) {
 
     private val launcher = AppLauncher(ctx)
     private val caller = CallHelper(ctx)
+    private val aiBrain = AiBrain(ctx)
 
     private enum class St {
         IDLE, CALL_NAME, CALL_PICK, CALL_CONFIRM,
@@ -124,7 +127,7 @@ class Commands(private val ctx: Context) {
             return startSms(t, raw)
         }
 
-        if (caller.isCallRequest(t)) return startCall(t)
+        if (caller.isCallRequest(t)) return startCall(raw)
 
         if (has(t, "time", "samay", "टाइम", "समय", "बजे")) {
             val now = SimpleDateFormat("hh:mm a", Locale.ENGLISH)
@@ -132,7 +135,7 @@ class Commands(private val ctx: Context) {
             return "सर, अभी $now हुए हैं"
         }
 
-        // ---- ऐप खोलना (App Opening & Play Store Check) ----
+        // ---- ऐप खोलना ----
         if (has(t, "open", "kholo", "chalao", "खोलो", "चलाओ", "खोल")) {
             val appName = t
                 .replace("open", "")
@@ -179,7 +182,7 @@ class Commands(private val ctx: Context) {
             }
             St.CALL_NAME -> {
                 if (caller.isNo(t)) return cancel()
-                return startCall(t)
+                return startCall(raw)
             }
             St.CALL_PICK -> {
                 if (caller.isNo(t)) return cancel()
@@ -270,38 +273,51 @@ class Commands(private val ctx: Context) {
         return "$s को क्या जवाब दूँ?"
     }
 
-    private fun startCall(t: String): String {
-        val num = caller.extractNumber(t)
-        if (num != null) {
-            val c = CallHelper.Contact(caller.speakableNumber(num), num)
-            target = c
-            st = St.CALL_CONFIRM
-            tries = 0
-            return "${c.name} पर कॉल लगाऊँ?"
+    // ---- AI Powered CALL Handler ----
+    private fun startCall(rawInput: String): String {
+        val contactsList = caller.findContacts("").joinToString(", ") { "${it.name}:${it.number}" }
+
+        val responseJson = runBlocking {
+            aiBrain.processCommand(rawInput, contactsList)
         }
-        val asking = st == St.CALL_NAME
-        if (caller.cleanName(t).isBlank()) {
-            st = St.CALL_NAME
-            return if (asking) retry("मुझे नाम सुनाई नहीं दिया, फिर से बोलिए")
-            else "किसे कॉल लगाऊँ?"
-        }
-        val list = caller.findContacts(t)
-        if (list.isEmpty()) {
-            return if (asking) retry("इस नाम का संपर्क नहीं मिला सर, फिर से नाम बोलिए")
-            else {
+
+        return try {
+            val json = JSONObject(responseJson)
+            val action = json.optString("action")
+            val status = json.optString("status")
+            val message = json.optString("message")
+
+            if (action == "CALL") {
+                when (status) {
+                    "EXACT_MATCH" -> {
+                        val targetName = json.optString("target_name")
+                        val matchedContact = caller.findContacts(targetName).firstOrNull()
+
+                        if (matchedContact != null) {
+                            target = matchedContact
+                            st = St.CALL_CONFIRM
+                            "${matchedContact.name} को कॉल लगाऊँ?"
+                        } else {
+                            "संपर्क नहीं मिला सर"
+                        }
+                    }
+                    "MULTIPLE_MATCHES" -> {
+                        st = St.CALL_PICK
+                        message.ifBlank { "कई संपर्क मिले, किसे कॉल लगाऊँ?" }
+                    }
+                    else -> {
+                        reset()
+                        "इस नाम का संपर्क नहीं मिला सर"
+                    }
+                }
+            } else {
                 reset()
-                "इस नाम का संपर्क नहीं मिला सर"
+                message
             }
+        } catch (e: Exception) {
+            reset()
+            "माफ़ कीजिए सर, समझने में त्रुटि हुई"
         }
-        tries = 0
-        if (list.size == 1) {
-            target = list[0]
-            st = St.CALL_CONFIRM
-            return "${list[0].name} को कॉल लगाऊँ?"
-        }
-        options = list
-        st = St.CALL_PICK
-        return "कई संपर्क मिले। " + caller.optionsText(list) + "किसे लगाऊँ?"
     }
 
     private fun startSms(t: String, raw: String): String {
@@ -509,8 +525,4 @@ class Commands(private val ctx: Context) {
         if (!ok) return "टाइमर नहीं लग पाया सर"
         val parts = ArrayList<String>()
         if (sec / 3600 > 0) parts.add("${sec / 3600} घंटे")
-        if ((sec % 3600) / 60 > 0) parts.add("${(sec % 3600) / 60} मिनट")
-        if (sec % 60 > 0) parts.add("${sec % 60} सेकंड")
-        return "${parts.joinToString(" ")} का टाइमर चालू कर दिया"
-    }
-}
+        if ((sec % 3600) / 60 > 0) parts.add("${
