@@ -233,8 +233,7 @@ class JarvisService : Service(), RecognitionListener {
     private fun onSpeechDone(id: String?) {
         if (!busy) return
         when (id) {
-            "ack" -> startCommandListening()
-            "reply" -> if (commands.isWaiting) startCommandListening() else finishSession()
+            "ack", "reply" -> startCommandListening()
             else -> finishSession()
         }
     }
