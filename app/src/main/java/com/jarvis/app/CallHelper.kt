@@ -20,7 +20,7 @@ class CallHelper(private val ctx: Context) {
         "कॉल", "काल", "call", "फोन", "फ़ोन", "phone", "dial", "डायल",
         "लगाओ", "लगा", "दो", "करो", "कर", "मिलाओ", "को", "ko", "karo",
         "lagao", "laga", "kar", "please", "plz", "जार्विस", "jarvis",
-        "मुझे", "mujhe", "से", "बात", "baat", "करनी", "है", "hai"
+        "मुझे", "mujhe", "से", "बात", "baat", "करनी", "है", "hai", "wale", "wala"
     )
 
     private val callWords = listOf(
@@ -37,11 +37,12 @@ class CallHelper(private val ctx: Context) {
         "ठीक", "theek", "thik", "ok", "okay", "लगाओ", "lagao", "बिल्कुल"
     )
 
+    // FIXED: Added all common conversational Hindi inflections (dusre, teesre, pehli, etc.)
     private val ordinals = listOf(
-        setOf("पहला", "पहले", "pehla", "pahla", "first", "1", "१", "एक", "one"),
-        setOf("दूसरा", "दूसरे", "dusra", "doosra", "second", "2", "२", "दो", "two"),
-        setOf("तीसरा", "तीसरे", "teesra", "tisra", "third", "3", "३", "तीन", "three"),
-        setOf("चौथा", "chautha", "fourth", "4", "४", "चार", "four"),
+        setOf("पहला", "पहले", "pehli", "pehla", "pahla", "first", "1", "१", "एक", "one"),
+        setOf("दूसरा", "दूसरे", "dusre", "dusra", "doosra", "dusri", "second", "2", "२", "दो", "two"),
+        setOf("तीसरा", "तीसरे", "teesre", "teesra", "tisra", "teesri", "third", "3", "३", "तीन", "three"),
+        setOf("चौथा", "चौथे", "chautha", "chauthe", "fourth", "4", "४", "चार", "four"),
         setOf("पांचवा", "पाँचवा", "panchva", "fifth", "5", "५", "पांच", "five")
     )
 
