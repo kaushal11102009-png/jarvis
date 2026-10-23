@@ -8,6 +8,7 @@ import android.hardware.camera2.CameraManager
 import android.os.Build
 import android.provider.AlarmClock
 import android.telephony.SmsManager
+import android.util.Log
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -315,8 +316,9 @@ class Commands(private val ctx: Context) {
                 message
             }
         } catch (e: Exception) {
+            Log.e("Jarvis", "AI error parsing call response", e)
             reset()
-            "माफ़ कीजिए सर, समझने में त्रुटि हुई"
+            "माफ़ कीजिए सर, त्रुटि: ${e.message}"
         }
     }
 
